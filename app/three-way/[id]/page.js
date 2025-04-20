@@ -382,7 +382,7 @@ const VideoConference = () => {
   };
 
   useEffect(() => {
-    const socket = io("https://localhost:5000", {
+    const socket = io("https://utalk-2.onrender.com", {
       transports: ["websocket"],
       secure: true,
       rejectUnauthorized: false,
