@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import io from 'socket.io-client';
 import mediasoupClient from 'mediasoup-client'
-
+// import { RemoteVideoPlayer } from '@/app/components/RemoteVideoPlayer';
 
 const VideoConference = () => {
   const [audio, setAudio] = useState(true);
@@ -382,7 +382,7 @@ const VideoConference = () => {
   };
 
   useEffect(() => {
-    const socket = io("https://utalk-2.onrender.com", {
+    const socket = io("https://localhost:5000", {
       transports: ["websocket"],
       secure: true,
       rejectUnauthorized: false,

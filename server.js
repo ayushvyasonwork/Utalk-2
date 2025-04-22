@@ -23,8 +23,6 @@ httpsServer.listen(process.env.PORT,'0.0.0.0', () => {
 const io = new Server(httpsServer);
 
 // socket.io namespace (could represent a room?)
-
-
 let worker;
 let rooms = {}; // { roomName: { Router, peers: [socketId, ...] } }
 let peers = {}; // { socketId: { roomName, transports: [], producers: [], consumers: [] } }
@@ -35,8 +33,8 @@ let consumers = []; // [ { socketId, roomName, consumer }, ... ]
 // Create a mediasoup worker
 const createWorker = async () => {
   worker = await mediasoup.createWorker({
-    rtcMinPort: 2000,
-    rtcMaxPort: 2020,
+    rtcMinPort: 40000,
+    rtcMaxPort: 41000,
   });
   console.log(`Worker PID: ${worker.pid}`);
 
@@ -68,50 +66,38 @@ app.get("/", (req, res) => {
 io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
   socket.emit('connection-success', { socketId: socket.id });
-    const removeItems = (items, socketId, type) => {
-    items.forEach(item => {
-      if (item.socketId === socket.id) {
-        item[type].close()
-      }
-    })
-    items = items.filter(item => item.socketId !== socket.id)
-
-    return items
-  }
+    
   socket.on('disconnect', () => {
-    // console.log('Peer disconnected:', socket.id);
-
-    // // Remove the producer entry with this socket.id
-    // const index = producers.findIndex(p => p.socketId === socket.id);
-    // if (index !== -1) {
-    //   producers.splice(index, 1);
-    //   console.log(`Producer with socketId ${socket.id} removed.`);
-    // }
     const removeItems = (items, socketId, type) => {
       items.forEach(item => {
-        if (item.socketId === socket.id) {
-          item[type].close()
+        if (item.socketId === socketId) {
+          item[type].close();
         }
-      })
-      items = items.filter(item => item.socketId !== socket.id)
+      });
+      items = items.filter(item => item.socketId !== socketId);
+      return items;
+    };
   
-      return items
+    console.log('peer disconnected');
+  
+    consumers = removeItems(consumers, socket.id, 'consumer');
+    producers = removeItems(producers, socket.id, 'producer');
+    transports = removeItems(transports, socket.id, 'transport');
+  
+    if (peers[socket.id]) {
+      const { roomName } = peers[socket.id];
+      delete peers[socket.id];
+  
+      // remove socket from room
+      rooms[roomName] = {
+        router: rooms[roomName].router,
+        peers: rooms[roomName].peers.filter(id => id !== socket.id),
+      };
+    } else {
+      console.warn(`No peer info found for socket ${socket.id}`);
     }
-    console.log('peer disconnected')
-    consumers = removeItems(consumers, socket.id, 'consumer')
-    producers = removeItems(producers, socket.id, 'producer')
-    transports = removeItems(transports, socket.id, 'transport')
-
-    const { roomName } = peers[socket.id]
-    delete peers[socket.id]
-
-    // remove socket from room
-    rooms[roomName] = {
-      router: rooms[roomName].router,
-      peers: rooms[roomName].peers.filter(socketId => socketId !== socket.id)
-    }
-    // console.log('producers are ',producers);
   });
+  
 
   socket.on('join-room', async ({ roomName }, callback) => {
     console.log('join room  is called ');
@@ -141,10 +127,17 @@ io.on('connection', (socket) => {
     rooms[roomName] = { router, peers: [...peersList, socketId] };
     return router;
   };
+   const iceServers = [
+      {
+        urls: "stun:stun.l.google.com:19302"
+      },
+      {
+        urls: "stun:stun1.l.google.com:19302"
+      }
+    ];
   socket.on('createWebRtcTransport', async ({ consumer }, callback) => {
     // get Room Name from Peer's properties
     const roomName = peers[socket.id].roomName
-
     // get Router (Room) object this peer is in based on RoomName
     const router = rooms[roomName].router
     console.log('router sent to create web rtc ',router);
@@ -157,6 +150,7 @@ io.on('connection', (socket) => {
             iceParameters: transport.iceParameters,
             iceCandidates: transport.iceCandidates,
             dtlsParameters: transport.dtlsParameters,
+            // iceServers: iceServers,
           }
         })
         console.log('callback is sent')
@@ -210,6 +204,7 @@ io.on('connection', (socket) => {
     })
 
     // add producer to the producers array
+    
     const { roomName } = peers[socket.id]
 
     addProducer(producer, roomName)
@@ -236,6 +231,7 @@ io.on('connection', (socket) => {
   socket.on('getProducers', callback => {
     //return all producer transports
     console.log('get producers event called ');
+    console.log('peers[socket.id]',peers[socket.id]);
     const { roomName } = peers[socket.id]
 
     let producerList = []
@@ -358,8 +354,8 @@ const createWebRtcTransport = async (router) => {
       const webRtcTransport_options = {
         listenIps: [
           {
-            ip: '0.0.0.0', // replace with relevant IP address
-            announcedIp: '10.22.6.161',
+            ip: '0.0.0.0',
+            announcedIp: '127.0.0.1' 
           }
         ],
         enableUdp: true,
@@ -389,6 +385,3 @@ const createWebRtcTransport = async (router) => {
   })
 }
 });
-
-
-
