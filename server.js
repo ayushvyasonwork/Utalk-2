@@ -372,13 +372,10 @@ const createWebRtcTransport = async (router) => {
           transport.close()
         }
       })
-
       transport.on('close', () => {
         console.log('transport closed')
       })
-
       resolve(transport)
-
     } catch (error) {
       reject(error)
     }
